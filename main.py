@@ -29,7 +29,7 @@ def create_json(inp):
         return {
             "cls": ev["links"]["course"],  # Class name
             "tpe": class_form,  # Type of the cass
-            "beg": time_new,  # Day and start time
+            "beg": [time_new],  # Day and start time
             "rom": ev["links"]["room"],  # Classroom
             "cap": ev["capacity"],  # Capacity
             "par": ev["parallel"],  # Parallel number
@@ -50,11 +50,11 @@ def create_json(inp):
     for sub in struct:
         for clType in struct[sub]:
             for ev in struct[sub][clType]:
-                times = [ev["beg"]]
+                times = ev["beg"]
 
                 for i in struct[sub][clType]:
-                    if ev["par"] == i["par"] and ev["beg"] != i["beg"]:
-                        times.append(i["beg"])
+                    if ev["par"] == i["par"] and ev["beg"][0] != i["beg"][0]:
+                        times.append(i["beg"][0])
                         struct[sub][clType].remove(i)
 
                 ev["beg"] = times
@@ -297,7 +297,7 @@ def main(start):
         if RANDOMIZE:
             shuffle(f)
         else:
-            f.sort(key=lambda x: x["beg"])
+            f.sort(key=lambda x: x["beg"][0])
     if RANDOMIZE:
         shuffle(flat)
     else:
