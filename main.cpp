@@ -38,6 +38,14 @@ using nlohmann::json;
 /// Time of start of the program
 static auto START = high_resolution_clock::now();
 
+/// Break all loops and stop magic
+static volatile bool keepRunning = true;
+
+/// SIGINT handler
+void sigintHandler(int) {
+    keepRunning = false;
+}
+
 /// Get last N chars of a string
 /// \param input - string to get the substring from
 /// \param n - numebr of chars to get
@@ -341,6 +349,9 @@ void solve(vector<Table *> &results, const list<list<Event>> &arr, const Table *
     // For each event in the first parallel-class-form-thing array
     auto firstSubject = *(arr.begin());
     for (auto &e : firstSubject) {
+        // Kill recursion when SIGINT comes
+        if (!keepRunning) break;
+        
         // Create a copy of the previous level table
         auto table = new Table(*tblOld);
         bool addedTime = false;
@@ -397,6 +408,9 @@ void solve(vector<Table *> &results, const list<list<Event>> &arr, const Table *
 }
 
 int main() {
+    // Handle SIGINT
+    signal(SIGINT, sigintHandler);
+    
     // Read JSON
     json j;
     try {
