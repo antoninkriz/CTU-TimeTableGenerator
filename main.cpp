@@ -18,6 +18,7 @@
 
 using std::cin;
 using std::cout;
+using std::flush;
 using std::endl;
 using std::fixed;
 using std::setprecision;
@@ -29,6 +30,8 @@ using std::tuple;
 using std::vector;
 using std::list;
 using std::map;
+using std::shared_ptr;
+using std::make_shared;
 using std::sort;
 using std::chrono::milliseconds;
 using std::chrono::duration_cast;
@@ -47,15 +50,6 @@ void sigintHandler(int) {
     keepRunning = false;
 }
 
-/// Get last N chars of a string
-/// \param input - string to get the substring from
-/// \param n - numebr of chars to get
-/// \return strign composed of last N chars or an empty string
-static string lastN(const string &input, int n) {
-    int inputSize = input.size();
-    return (n > 0 && inputSize > n) ? input.substr(inputSize - n) : "";
-}
-
 /// Form of the class
 enum ClassForm {
     Lecture,
@@ -66,7 +60,7 @@ enum ClassForm {
 /// Event object holding data about a single class-parallel-thingy
 class Event {
 public:
-    bool operator==(const Event &e) {
+    bool operator==(const Event &e) const {
         return this->p_name == e.p_name &&
                this->p_form == e.p_form &&
                this->p_begin == e.p_begin &&
@@ -75,9 +69,9 @@ public:
                this->p_parallel == e.p_parallel;
     }
 
-    bool operator!=(Event e) {
+    bool operator!=(const Event& e) const {
         bool r = e == *this;
-        return r ^ 1u;
+        return !r;
     }
 
     /// Parses class form
@@ -152,7 +146,7 @@ public:
             {EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY}
     };
 
-    Table() = default;
+    constexpr Table() = default;
 
     Table(const Table &old) {
         table = old.table;
@@ -289,11 +283,11 @@ public:
         }
     }
 
-    bool operator<(const Table &other) {
+    bool constexpr operator<(const Table &other) const {
         return score < other.score;
     }
 
-    static bool sortInstances(Table *a, Table *b) {
+    static constexpr bool sortInstances(Table *a, Table *b) {
         return *a < *b;
     }
 };
@@ -301,21 +295,21 @@ public:
 /// Parse the JSON into some usable form
 /// \param inp - Input JSON
 /// \return parsed data, throws on parsing error
-map<string, map<ClassForm, list<Event>>> *createJson(const json &inp) {
-    auto data = new map<string, map<ClassForm, list<Event>>>;
+map<string, map<ClassForm, list<shared_ptr<Event>>>> *createJson(const json &inp) {
+    auto data = new map<string, map<ClassForm, list<shared_ptr<Event>>>>;
 
     // Parse each event and categorize it
     for (auto&[key, array] : inp.items())
         for (auto &value : array["events"])
-            (*data)[value["links"]["course"]][Event::parseClassForm(value["event_type"])].emplace_back(value);
+            (*data)[value["links"]["course"]][Event::parseClassForm(value["event_type"])].emplace_back(make_shared<Event>(value));
 
     // Combine same parallels into a single events
     for (auto &subject : *data) {
         for (auto &form : subject.second) {
             for (auto &event : form.second) {
                 for (auto it = form.second.begin(); it != form.second.end(); ++it) {
-                    if (event.p_parallel == (*it).p_parallel && event != *it) {
-                        event.p_begin.emplace_back((*it).p_begin[0]);
+                    if (event->p_parallel == (*it)->p_parallel && event != *it) {
+                        event->p_begin.emplace_back((*it)->p_begin[0]);
                         it = form.second.erase(it);
                     }
                 }
@@ -329,8 +323,8 @@ map<string, map<ClassForm, list<Event>>> *createJson(const json &inp) {
 /// Flattens events into pure lists
 /// \param data - parsed JSON
 /// \return flattened list of lists
-list<list<Event>> *flattenData(const map<string, map<ClassForm, list<Event>>> &data) {
-    auto flattened = new list<list<Event>>;
+list<list<shared_ptr<Event>>> *flattenData(const map<string, map<ClassForm, list<shared_ptr<Event>>>> &data) {
+    auto flattened = new list<list<shared_ptr<Event>>>;
 
     for (auto &subject : data) {
         for (auto &classType : subject.second) {
@@ -346,7 +340,7 @@ list<list<Event>> *flattenData(const map<string, map<ClassForm, list<Event>>> &d
 /// \param arr - list containing list of all class-form-parallel things
 /// \param tblOld - previous level table to copy and edit
 /// \param flatCombinations - total number of possible combinations
-void solve(vector<Table *> &results, const list<list<Event>> &arr, const Table *tblOld, const long flatCombinations) {
+void solve(vector<Table *> &results, const list<list<shared_ptr<Event>>> &arr, const Table *tblOld, const long flatCombinations) {
     // For each event in the first parallel-class-form-thing array
     auto firstSubject = *(arr.begin());
     for (auto &e : firstSubject) {
@@ -358,44 +352,60 @@ void solve(vector<Table *> &results, const list<list<Event>> &arr, const Table *
         bool addedTime = false;
 
         // For each class-time in a current parallel
-        for (auto &time : e.p_begin) {
+        for (auto &time : e->p_begin) {
             int x, y;
             tie(x, y) = Table::timeToIndex(time);
 
-            // Can this time be added to the time table without a colission?
+            // Can this time be added to the time table without a collision?
             if (!table->table[x][y].empty()) {
-                // Nope, colission would occur
+                // Nope, collision would occur
                 addedTime = false;
                 break;
             }
 
             // Yep, add the class to the time table
             addedTime = true;
-            table->table[x][y] = e.p_name + (e.p_form == ClassForm::Tutorial
-                                             ? "t" : e.p_form == ClassForm::Laboratory
-                                                     ? "b" : "l");
+            table->table[x][y] = e->p_name + (e->p_form == ClassForm::Tutorial
+                                             ? "t"
+                                             : e->p_form == ClassForm::Laboratory
+                                               ? "b"
+                                               : "l");
         }
 
         // Was the parallel-class-type-thing was successfully added
         if (addedTime) {
             // Yes, let's move to the another level if possible
-            list<list<Event>> arrNew = arr;
+            list<list<shared_ptr<Event>>> arrNew = arr;
             arrNew.pop_front();
 
             // No more classes to add, time table is complete. Let's save it.
             if (arrNew.empty()) {
-                // Score the time table and save it
+                // Score the time table
                 table->scoreTable();
-                results.push_back(table);
+
+                // Save it if it makes sense
+                if (results.empty() || results[0]->score == table->score) {
+                    results.push_back(table);
+                } else if (results[0]->score > table->score) {
+                    // This table is actually better than tables we already have
+                    // Let's clear all result we have so far and save this table
+                    results.clear();
+                    results.push_back(table);
+                }
+
+                static int tried = 0;
+                tried++;
 
                 // Print progress
-                if (results.size() % 1000 == 0) {
+                if (tried % 1000 == 0) {
                     // How long did it take from the start?
                     auto tmr = duration_cast<milliseconds>(high_resolution_clock::now() - START).count();
                     // Percentage progress of all combinations
-                    auto prc = (results.size() / (double) flatCombinations) * 100;
-                    cout << setprecision(5) << fixed << prc << " - " << (tmr / 1000.0)
-                         << " - " << results.size() << endl;
+                    auto prc = (tried / (double) flatCombinations) * 100;
+
+                    // Clear current line and print a new one over it
+                    cout << "\r\e[K" << flush
+                         << setprecision(5) << fixed << prc << " - " << (tmr / 1000.0) << " - " << tried << flush;
                 }
             } else {
                 // There are more classes to add, let's try them
@@ -416,7 +426,7 @@ int main() {
     json j;
     try {
         cin >> j;
-    } catch (error_t e) {
+    } catch (error_t) {
         cout << "Json can not be parsed";
         return 1;
     }
@@ -435,7 +445,7 @@ int main() {
 
     cout << "Data parsed after " << ((double) end / 1000.0) << " seconds" << endl;
     cout << "Maximum combinations: " << flatCombinations << endl;
-    cout << "[% of combinations tried] - [time spent in seconds] - [number of total results]" << endl;
+    cout << "[% of possible combinations tried] - [time spent in seconds] - [number of total results]" << endl;
 
     auto results = new vector<Table *>;
     START = high_resolution_clock::now();
@@ -445,6 +455,7 @@ int main() {
     sort(results->begin(), results->end(), Table::sortInstances);
 
     end = duration_cast<milliseconds>(high_resolution_clock::now() - START).count();
+    cout << endl;
     cout << "Found " << results->size() << " possible timetables" << endl;
     cout << "Execution stopped after " << end / 1000.0 << " seconds" << endl;
     cout << "Results:" << endl;

@@ -19,7 +19,6 @@ Parameters `NO_730` and `NO_915` can be enabled/disabled in the code. Please sup
 - only standard class times are supported (exception for BI-CS1, see `time_to_index` or `timeToIndex` functions)
 - and probably much, much more
 
-
 ## How to use
 Spoof HTTP requests to `https://timetable.fit.cvut.cz/new/api/sirius/courses/CLASS_NAME/events?...` from [timetable.fit.cvut.cz](https://timetable.fit.cvut.cz/new/) Using Chrome Dev tools and copy paste them to the `rozvrh.json` file following this structure:
 
@@ -35,7 +34,11 @@ Spoof HTTP requests to `https://timetable.fit.cvut.cz/new/api/sirius/courses/CLA
 Place file `rozvrh.json` into same folder where's the script and run it. It's slow for bigger input. Very slow - around 90 minutes minutes with complete data. Be aware.
 
 ### C++
-Compile with `g++ -O3 main.cpp` and pipe the input file to stdin of the program using `cat rozvrh.json | ./a,out`. This one is actually fast, using the same algorithm.
+Compile with `g++ -O3 --std=c++17 main.cpp` and pipe the input file to stdin of the program using `cat rozvrh.json | ./a.out`. This one is actually fast, using the same algorithm.
+
+## Warning
+
+Keep your eye on your RAM while this code runs. This is NP-hard problem and can take ~~shitlaod~~ a lot of RAM to complete. A lot means even 10 GB. Take that in mind.
 
 ## I am very generous and I want to help
 Don't be afraid to create an issue or a pull request!
