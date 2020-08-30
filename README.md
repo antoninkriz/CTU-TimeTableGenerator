@@ -1,4 +1,6 @@
-# CTU-TimeTableGenerator
+> *This project is deprecated in favor of the [CTU-TimeTableGenerator-new](https://github.com/antoninkriz/CTU-TimeTableGenerator-new)*
+
+# ~~CTU-TimeTableGenerator~~
 Generates the best possible time table
 
 ## What can it do?
